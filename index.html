@@ -1231,6 +1231,41 @@
   .simplePeriodic{ min-width:650px; }
 }
 
+
+/* ---------- Consistent classroom touch interactions ---------- */
+.sandboxBinLabel{
+  font-size:11px;
+  font-weight:900;
+  fill:#7A3030;
+  pointer-events:none;
+}
+.ionMpCard{
+  position:relative;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+.ionMpCard.dragging{ opacity:1; }
+.ionMpCard.mpSelected{
+  border-color:#236A8D;
+  background:#F3FAFD;
+}
+.mpRankBadge{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:34px;
+  height:34px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#16324A;
+  color:#fff;
+  font-size:19px;
+  font-weight:900;
+  box-shadow:0 1px 3px rgba(0,0,0,.18);
+}
+
 </style>
 </head>
 <body>
@@ -1262,7 +1297,7 @@
       <h2>Ion Atom Tray</h2>
       <div class="ionTray" id="ionTray"></div>
       <p style="font-size:11.5px;color:#5a6b74;line-height:1.4;margin:7px 0 0;">
-        Drag atoms into the sandbox. For metals, click outer-shell electrons to remove them.
+        Click atoms to place them in the sandbox. For metals, click outer-shell electrons to remove them.
         For non-metals, click empty outer-shell positions to add electrons from the electron bank.
       </p>
     </div>
@@ -1281,8 +1316,9 @@
           <b>Order the three ionic substances from lowest to highest melting point.</b>
           <span class="ionQuizProgress" id="ionQuizProgress">1 / 10</span>
           <br>
-          Drag the cards into order. Use the graphical ion size and ionic charge:
-          smaller centre-to-centre distance and larger ionic charges generally mean stronger electrostatic attraction.
+          Select the cards in order of increasing melting point. Your first selection is 1, then 2, then 3.
+          After the third selection the cards will arrange themselves in your chosen order.
+          Use the graphical ion size and ionic charge: smaller centre-to-centre distance and larger ionic charges generally mean stronger electrostatic attraction.
         </div>
         <div class="ionQuizCards" id="ionQuizCards"></div>
         <div class="ionQuizControls">
@@ -1322,7 +1358,7 @@
       <div class="keyRow"><span class="ionKeyDot"></span><span>Once a complete outer shell is reached, that ion is locked so no extra electrons can be removed or added.</span></div>
       <div class="keyRow"><span class="ionKeyDot"></span><span><b>Form the ionic substance:</b> bring completed positive and negative ions close together. Opposite charges snap together; like charges repel when released.</span></div>
       <div class="keyRow"><span class="ionKeyDot"></span><span>When the joined ions have an overall charge of <b>zero</b>, the lab confirms that the charges balance correctly.</span></div>
-      <div class="keyRow"><span class="ionKeyDot"></span><span>Drag an ion out of the sandbox to remove it. Any of its donated electrons still in the electron bank are removed as well.</span></div>
+      <div class="keyRow"><span class="ionKeyDot"></span><span>Drag an ion onto the bin in the top-left of the sandbox to remove it. Any of its donated electrons still in the electron bank are removed as well.</span></div>
       <p style="margin-top:12px;">
         The nucleus shows the <b>element symbol</b> and, underneath it, the <b>number of protons</b>.
         The ion charge changes as electrons are transferred.
@@ -1335,8 +1371,8 @@
       <div id="ionQuizSide" style="display:none;">
         <h2 style="margin-top:15px;">Challenge 2</h2>
         <div style="font-size:12px;">
-          The drawings deliberately exaggerate ion-size differences. Rank by the combined effects of
-          <b>ionic charge</b> and <b>distance between ion centres</b>.
+          The drawings deliberately exaggerate ion-size differences. <b>Select the cards from lowest to highest melting point.</b>
+          Rank using the combined effects of <b>ionic charge</b> and <b>distance between ion centres</b>.
         </div>
       </div>
       <div id="ionPeriodicSide" style="display:none;">
@@ -1370,7 +1406,7 @@
   <div class="panel palette">
     <h2>Atom Tray</h2>
     <div id="tray"></div>
-    <p style="font-size:11.5px;color:#5a6b74;line-height:1.4;">Drag an atom into the workspace, then drag atoms near each other to bond. Drag a workspace atom back onto this panel to remove it. <b>Click a formed bond</b> to add another shared pair and turn it into a double or triple bond.</p>
+    <p style="font-size:11.5px;color:#5a6b74;line-height:1.4;"><b>Click an atom</b> to place it automatically in an open space in the workspace, then drag atoms near each other to bond. To remove an atom, drag it onto the <b>bin</b> in the top-left of the workspace. <b>Click a formed bond</b> to add another shared pair and turn it into a double or triple bond.</p>
   </div>
 
   <div class="canvasWrap">
@@ -1528,6 +1564,7 @@
   let ionChallengeDone=new Set();
   let ionChallengeAwaitingNext=false;
   let mpQuizIndex=0;
+  let mpSelectedOrder=[];
 
   let ions=[];
   let bank=0;
@@ -1996,57 +2033,75 @@
     }
 
     cards.innerHTML='';
+    mpSelectedOrder=[];
     start.forEach(item=>{
       const card=document.createElement('div');
       card.className='ionMpCard';
-      card.draggable=true;
+      card.draggable=false;
       card.dataset.formula=item.formula;
       card.innerHTML=`<div class="formula">${item.formula}</div>${ionPairSVG(item)}`;
+      card.addEventListener('click',()=>selectMpCard(card));
       cards.appendChild(card);
     });
-    wireMpDrag();
+    mpSelectedOrder=[];
+    document.getElementById('ionCheckOrder').disabled=true;
   }
 
-  function wireMpDrag(){
-    const cards=document.getElementById('ionQuizCards');
-    let draggingCard=null;
-    [...cards.children].forEach(card=>{
-      card.addEventListener('dragstart',()=>{
-        draggingCard=card;
-        card.classList.add('dragging');
+  function selectMpCard(card){
+    if(card.dataset.rank || mpSelectedOrder.length>=3) return;
+    const rank=mpSelectedOrder.length+1;
+    card.dataset.rank=String(rank);
+    card.classList.add('mpSelected');
+
+    const badge=document.createElement('div');
+    badge.className='mpRankBadge';
+    badge.textContent=String(rank);
+    card.appendChild(badge);
+
+    mpSelectedOrder.push(card.dataset.formula);
+
+    if(mpSelectedOrder.length===3){
+      const cards=document.getElementById('ionQuizCards');
+      mpSelectedOrder.forEach(formula=>{
+        const c=[...cards.children].find(x=>x.dataset.formula===formula);
+        if(c) cards.appendChild(c);
       });
-      card.addEventListener('dragend',()=>{
-        card.classList.remove('dragging');
-        draggingCard=null;
-      });
-      card.addEventListener('dragover',ev=>{
-        ev.preventDefault();
-        if(!draggingCard || draggingCard===card) return;
-        const rect=card.getBoundingClientRect();
-        const before=ev.clientX < rect.left+rect.width/2;
-        cards.insertBefore(draggingCard,before?card:card.nextSibling);
-      });
-    });
+      document.getElementById('ionCheckOrder').disabled=false;
+      document.getElementById('ionQuizFeedback').textContent='Your selected order is shown. Press Check.';
+    }
   }
 
   function checkMpOrder(){
     const round=mpQuizRounds[mpQuizIndex];
-    if(!round) return;
+    if(!round || mpSelectedOrder.length!==3) return;
     const q={items:round.keys.map(k=>MP_ITEMS[k]),note:round.note};
     const expected=[...q.items].sort((a,b)=>a.mp-b.mp).map(x=>x.formula);
     const actual=[...document.getElementById('ionQuizCards').children].map(c=>c.dataset.formula);
     const correct=expected.every((f,i)=>actual[i]===f);
     const feedback=document.getElementById('ionQuizFeedback');
+    const cards=document.getElementById('ionQuizCards');
+
+    // Lock the cards after checking.
+    [...cards.children].forEach(c=>c.style.pointerEvents='none');
+    document.getElementById('ionCheckOrder').disabled=true;
+
     if(!correct){
-      feedback.textContent='Not yet. Compare both ionic charge and the distance between the ion centres.';
-      return;
+      // Reorder immediately into the correct sequence.
+      expected.forEach(formula=>{
+        const c=[...cards.children].find(x=>x.dataset.formula===formula);
+        if(c) cards.appendChild(c);
+      });
+      feedback.textContent='Incorrect — the cards have been rearranged into the correct lowest → highest order.';
+    }else{
+      feedback.textContent='Correct — lowest → highest melting point.';
     }
-    feedback.textContent='Correct — lowest → highest melting point.';
+
     const reveal=document.getElementById('ionMpReveal');
     reveal.innerHTML=expected.map(f=>{
       const item=q.items.find(x=>x.formula===f);
       return `<div><b>${item.formula}</b><br>${item.mp} °C</div>`;
     }).join('');
+
     const note=document.getElementById('ionFactorNote');
     note.textContent=q.note;
     note.style.display='block';
@@ -2113,10 +2168,37 @@
       const el=ION_ELEMENTS[sym];
       const tile=document.createElement('div');
       tile.className='ionTile';
+      tile.title='Click to add to sandbox';
       tile.innerHTML=`${miniature(sym)}<div><b>${sym}</b></div><div class="groupLabel">${el.group}</div>`;
-      tile.addEventListener('pointerdown',ev=>startTrayDrag(ev,sym),{passive:false});
+      tile.addEventListener('click',()=>addIonFromTray(sym));
       tray.appendChild(tile);
     });
+  }
+
+  function findOpenIonPosition(){
+    const candidates=[];
+    const xs=[155,285,415,545,675,805];
+    const ys=[145,255,365,455];
+    ys.forEach(y=>xs.forEach(x=>candidates.push({x,y})));
+
+    // Prefer positions clear of existing ions and away from the electron bank/bin.
+    let best=null, bestScore=-Infinity;
+    candidates.forEach(p=>{
+      if(p.x<125 && p.y<120) return;
+      let minD=Infinity;
+      ions.forEach(a=>{ minD=Math.min(minD,Math.hypot(p.x-a.x,p.y-a.y)); });
+      if(!ions.length) minD=999;
+      if(minD>bestScore){ bestScore=minD; best=p; }
+    });
+    return best || {x:180+((ions.length*95)%600),y:170+((ions.length%3)*110)};
+  }
+
+  function addIonFromTray(sym){
+    if(ionMode==='challenge1' && ionChallengeAwaitingNext) return;
+    if(ionMode==='challenge2' || ionMode==='challenge3') return;
+    const p=findOpenIonPosition();
+    ions.push({id:nextId++,el:sym,x:p.x,y:p.y,removed:0,added:0});
+    render();
   }
 
   function startTrayDrag(ev,sym){
@@ -2655,13 +2737,7 @@
       return;
     }
 
-    const r=stage.getBoundingClientRect();
-    const releasedOutside = ev && (
-      ev.clientX<r.left || ev.clientX>r.right ||
-      ev.clientY<r.top || ev.clientY>r.bottom
-    );
-
-    if(releasedOutside){
+    if(ionPointerInBin(ev)){
       const ids=[...dragging.ids];
       dragging=null;
       window.removeEventListener('pointermove',moveIon);
@@ -2698,9 +2774,29 @@
     if(!renderedDuringRelease) render();
   }
 
+  function drawIonBin(){
+    const g=svgEl('g',{id:'ionBin',transform:'translate(18 16)'});
+    g.style.pointerEvents='none';
+    g.innerHTML=`
+      <rect x="0" y="0" width="78" height="72" rx="10" fill="#FFF1F1" stroke="#B64A4A" stroke-width="2"/>
+      <path d="M25 25 H53 L50 57 H28 Z M22 20 H56 M32 15 H46" fill="none" stroke="#8E3333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="39" y="68" text-anchor="middle" class="sandboxBinLabel">BIN</text>`;
+    stage.appendChild(g);
+  }
+
+  function ionPointerInBin(ev){
+    if(!ev) return false;
+    const r=stage.getBoundingClientRect();
+    const vb=stage.viewBox.baseVal;
+    const x=(ev.clientX-r.left)/r.width*vb.width;
+    const y=(ev.clientY-r.top)/r.height*vb.height;
+    return x>=18 && x<=96 && y>=16 && y<=88;
+  }
+
   function render(){
     stage.innerHTML='';
     drawBank();
+    drawIonBin();
     ions.forEach(drawIon);
   }
 
@@ -3217,9 +3313,30 @@ function settleAll(){
 }
 
 /* ===================== RENDER (2D) ===================== */
+function drawCovalentBin(){
+  const g=document.createElementNS(NS,'g');
+  g.setAttribute('id','covalentBin');
+  g.setAttribute('transform','translate(12 12)');
+  g.style.pointerEvents='none';
+  g.innerHTML=`
+    <rect x="0" y="0" width="78" height="72" rx="10" fill="#FFF1F1" stroke="#B64A4A" stroke-width="2"/>
+    <path d="M25 25 H53 L50 57 H28 Z M22 20 H56 M32 15 H46" fill="none" stroke="#8E3333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="39" y="68" text-anchor="middle" class="sandboxBinLabel">BIN</text>`;
+  stage.appendChild(g);
+}
+
+function covalentPointerInBin(ev){
+  if(!ev) return false;
+  const r=stage.getBoundingClientRect();
+  const x=ev.clientX-r.left;
+  const y=ev.clientY-r.top;
+  return x>=12 && x<=90 && y>=12 && y<=84;
+}
+
 function render(){
 while(stage.firstChild) stage.removeChild(stage.firstChild);
 
+  drawCovalentBin();
   bonds.forEach(b=>drawBond(b));
   atoms.forEach(a=>drawAtom(a));
 
@@ -3529,17 +3646,9 @@ window.addEventListener('pointerup', (ev)=>{
     const draggedId=dragging.id;
     const draggedAtom=findAtom(draggedId);
 
-    // Dragging an atom back over the left element panel removes that atom
-    // individually from the workspace. Its associated bonds disappear too.
-    const tray = document.querySelector('.tray') || document.querySelector('#tray') || document.querySelector('.elements');
-    let remove=false;
-    if(tray && ev){
-      const r=tray.getBoundingClientRect();
-      remove = ev.clientX>=r.left && ev.clientX<=r.right &&
-               ev.clientY>=r.top && ev.clientY<=r.bottom;
-    }
-
-    if(remove && draggedAtom && dragging.mode==='single'){
+    // Removal is consistent across devices: drag the atom onto the visible bin.
+    const remove=covalentPointerInBin(ev);
+    if(remove && draggedAtom){
       bonds=bonds.filter(b=>b.a!==draggedId && b.b!==draggedId);
       atoms=atoms.filter(a=>a.id!==draggedId);
     }
@@ -3609,15 +3718,41 @@ function buildTray(){
     const tile=document.createElement('div');
     tile.className='atomTile';
     tile.dataset.element=sym;
-    tile.title=`Drag into workspace`;
+    tile.title='Click to add to workspace';
     tile.innerHTML=`
       ${trayShellSVG(sym)}
       <div class="electronConfig">${el.shells.join(',')}</div>
     `;
 
-    tile.addEventListener('pointerdown', ev=>startTrayDrag(ev,sym,tile), {passive:false});
+    tile.addEventListener('click', ()=>addCovalentAtomFromTray(sym));
     tray.appendChild(tile);
   });
+}
+
+function findOpenCovalentPosition(sym){
+  const rect=stage.getBoundingClientRect();
+  const W=rect.width||900, H=rect.height||560;
+  const margin=ringRadiusFor(sym)+8;
+  const xs=[0.20,0.36,0.52,0.68,0.84].map(f=>Math.max(margin,Math.min(W-margin,W*f)));
+  const ys=[0.27,0.48,0.69,0.84].map(f=>Math.max(margin,Math.min(H-margin,H*f)));
+  const candidates=[];
+  ys.forEach(y=>xs.forEach(x=>candidates.push({x,y})));
+
+  let best=null,bestScore=-Infinity;
+  candidates.forEach(p=>{
+    // Reserve top-left for the bin.
+    if(p.x<115 && p.y<105) return;
+    let minD=Infinity;
+    atoms.forEach(a=>{ minD=Math.min(minD,Math.hypot(p.x-a.x,p.y-a.y)); });
+    if(!atoms.length) minD=999;
+    if(minD>bestScore){ bestScore=minD; best=p; }
+  });
+  return best || {x:W*0.5,y:H*0.5};
+}
+
+function addCovalentAtomFromTray(sym){
+  const p=findOpenCovalentPosition(sym);
+  addAtomAt(sym,p.x,p.y);
 }
 
 let trayDrag=null;
@@ -4008,5 +4143,3 @@ render();
 </script>
 </body>
 </html>
-
-
